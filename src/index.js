@@ -78,11 +78,14 @@ app.get("/admin/dashboard", adminAuth, async (req, res) => {
       select: { id: true, firstName: true, lastName: true, email: true, phone: true }
     });
 
+    const users = await prisma.user.count();
+    const products = await prisma.product.count();
+
     if (!admin) {
       return res.status(400).json({ message: "Admin not found" });
     }
 
-    res.status(200).json({ message: "Welcome to the Admin Dashboard", admin });
+    res.status(200).json({ message: "Welcome to the Admin Dashboard", admin, users, products });
   } catch (error) {
     console.error("Error fetching admin dashboard:", error);
     res.status(500).json({ message: "Internal Server Error" });
@@ -138,7 +141,6 @@ app.get('/admin/get-products',adminAuth, async(req,res) => {
   try {
     const product = await prisma.product.findMany({
       include: { images: true }
-      
     });
 
     if (!product) {
@@ -366,6 +368,196 @@ app.get("/admin/get-categories", adminAuth, async (req, res) => {
     res.status(200).json({ categories });
   } catch (error) {
     console.error("Error fetching categories:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+app.get('/admin/get-category', adminAuth, async(req,res) => {
+  try {
+    const categories = await prisma.categories.findMany();
+    res.status(200).json({ categories });
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+})
+
+// Add a new category
+app.post("/admin/add-category", adminAuth, async (req, res) => {
+  const { categories, subCategories = [] } = req.body;
+  
+  try {
+    // Check if category already exists
+    const existingCategory = await prisma.categories.findFirst({
+      where: { categories: { equals: categories, mode: 'insensitive' } }
+    });
+    
+    if (existingCategory) {
+      return res.status(400).json({ message: "Category already exists" });
+    }
+    
+    const newCategory = await prisma.categories.create({
+      data: {
+        categories,
+        subCategories
+      }
+    });
+    
+    res.status(201).json({ message: "Category added successfully", category: newCategory });
+  } catch (error) {
+    console.error("Error adding category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+// Update a category
+app.put("/admin/update-category/:categoryId", adminAuth, async (req, res) => {
+  const { categoryId } = req.params;
+  const { categories, subCategories } = req.body;
+  
+  try {
+    // Check if the category exists
+    const existingCategory = await prisma.categories.findUnique({
+      where: { id: parseInt(categoryId) }
+    });
+    
+    if (!existingCategory) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+    
+    // Check if the new name already exists (excluding the current category)
+    if (categories) {
+      const nameExists = await prisma.categories.findFirst({
+        where: {
+          categories: { equals: categories, mode: 'insensitive' },
+          id: { not: parseInt(categoryId) }
+        }
+      });
+      
+      if (nameExists) {
+        return res.status(400).json({ message: "Category name already exists" });
+      }
+    }
+    
+    // Prepare update data
+    const updateData = {};
+    if (categories) updateData.categories = categories;
+    if (subCategories) updateData.subCategories = subCategories;
+    
+    const updatedCategory = await prisma.categories.update({
+      where: { id: parseInt(categoryId) },
+      data: updateData
+    });
+    
+    res.status(200).json({ message: "Category updated successfully", category: updatedCategory });
+  } catch (error) {
+    console.error("Error updating category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+// Delete a category
+app.delete("/admin/delete-category/:categoryId", adminAuth, async (req, res) => {
+  const { categoryId } = req.params;
+  
+  try {
+    // Check if the category exists
+    const existingCategory = await prisma.categories.findUnique({
+      where: { id: parseInt(categoryId) }
+    });
+    
+    if (!existingCategory) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+    
+    // Delete the category
+    await prisma.categories.delete({
+      where: { id: parseInt(categoryId) }
+    });
+    
+    res.status(200).json({ message: "Category deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+// Add a subcategory to an existing category
+app.post("/admin/add-subcategory/:categoryId", adminAuth, async (req, res) => {
+  const { categoryId } = req.params;
+  const { subcategory } = req.body;
+  
+  if (!subcategory) {
+    return res.status(400).json({ message: "Subcategory name is required" });
+  }
+  
+  try {
+    // Check if the category exists
+    const category = await prisma.categories.findUnique({
+      where: { id: parseInt(categoryId) }
+    });
+    
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+    
+    // Check if subcategory already exists
+    if (category.subCategories.includes(subcategory)) {
+      return res.status(400).json({ message: "Subcategory already exists in this category" });
+    }
+    
+    // Add the subcategory
+    const updatedCategory = await prisma.categories.update({
+      where: { id: parseInt(categoryId) },
+      data: {
+        subCategories: {
+          push: subcategory
+        }
+      }
+    });
+    
+    res.status(201).json({ message: "Subcategory added successfully", category: updatedCategory });
+  } catch (error) {
+    console.error("Error adding subcategory:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+// Delete a subcategory from a category
+app.delete("/admin/delete-subcategory/:categoryId", adminAuth, async (req, res) => {
+  const { categoryId } = req.params;
+  const { subcategory } = req.body;
+  
+  if (!subcategory) {
+    return res.status(400).json({ message: "Subcategory name is required" });
+  }
+  
+  try {
+    // Check if the category exists
+    const category = await prisma.categories.findUnique({
+      where: { id: parseInt(categoryId) }
+    });
+    
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+    
+    if (!category.subCategories.includes(subcategory)) {
+      return res.status(404).json({ message: "Subcategory not found in this category" });
+    }
+    
+    const updatedSubcategories = category.subCategories.filter(sub => sub !== subcategory);
+    
+    const updatedCategory = await prisma.categories.update({
+      where: { id: parseInt(categoryId) },
+      data: {
+        subCategories: updatedSubcategories
+      }
+    });
+    
+    res.status(200).json({ message: "Subcategory deleted successfully", category: updatedCategory });
+  } catch (error) {
+    console.error("Error deleting subcategory:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
