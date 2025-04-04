@@ -482,7 +482,214 @@ app.delete("/admin/delete-category/:categoryId", adminAuth, async (req, res) => 
   }
 });
 
-// Add a subcategory to an existing category
+// app.get("/admin/get-categories", adminAuth, async (req, res) => {
+//   try {
+//     const occasions = await prisma.allCategories.findMany();
+//     res.status(200).json({ occasions });
+//   } catch (error) {
+//     console.error("Error fetching categories:", error);
+//     res.status(500).json({ message: "Internal Server Error" });
+//   }
+// });
+
+app.get('/admin/get-occasion', adminAuth, async(req,res) => {
+  try {
+    const occasions = await prisma.occasions.findMany();
+    res.status(200).json({ occasions });
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+})
+
+app.post("/admin/add-occasion", adminAuth, async (req, res) => {
+  const { occasions } = req.body;
+  
+  try {
+    const existingOccasion = await prisma.occasions.findFirst({
+      where: { occasions: { equals: occasions, mode: 'insensitive' } }
+    });
+    
+    if (existingOccasion) {
+      return res.status(400).json({ message: "Occasion already exists" });
+    }
+    
+    const newOccasion = await prisma.occasions.create({
+      data: {
+        occasions
+      }
+    });
+    
+    res.status(201).json({ message: "Category added successfully", category: newOccasion });
+  } catch (error) {
+    console.error("Error adding category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+app.put("/admin/update-occasion/:occasionId", adminAuth, async (req, res) => {
+  const { occasionId } = req.params;
+  const { occasions } = req.body;
+  
+  try {
+    const existingOccasion = await prisma.occasions.findUnique({
+      where: { id: parseInt(occasionId) }
+    });
+    
+    if (!existingOccasion) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+    
+    if (occasions) {
+      const nameExists = await prisma.occasions.findFirst({
+        where: {
+          occasions: { equals: occasions, mode: 'insensitive' },
+          id: { not: parseInt(occasionId) }
+        }
+      });
+      
+      if (nameExists) {
+        return res.status(400).json({ message: "Occasion name already exists" });
+      }
+    }
+    
+    const updateData = {};
+    if (occasions) updateData.occasions = occasions;
+    
+    const updatedOccasion = await prisma.occasions.update({
+      where: { id: parseInt(occasionId) },
+      data: updateData
+    });
+    
+    res.status(200).json({ message: "Category updated successfully", occasion: updatedOccasion });
+  } catch (error) {
+    console.error("Error updating category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+app.delete("/admin/delete-occasion/:occasionId", adminAuth, async (req, res) => {
+  const { occasionId } = req.params;
+  
+  try {
+    const existingOccasion = await prisma.occasions.findUnique({
+      where: { id: parseInt(occasionId) }
+    });
+    
+    if (!existingOccasion) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+    
+    await prisma.occasions.delete({
+      where: { id: parseInt(occasionId) }
+    });
+    
+    res.status(200).json({ message: "Category deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+app.get('/admin/get-recipient', adminAuth, async(req,res) => {
+  try {
+    const recipients = await prisma.recipients.findMany();
+    res.status(200).json({ recipients });
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+})
+
+app.post("/admin/add-recipient", adminAuth, async (req, res) => {
+  const { recipients } = req.body;
+  
+  try {
+    const existingRecipient = await prisma.recipients.findFirst({
+      where: { recipients: { equals: recipients, mode: 'insensitive' } }
+    });
+    
+    if (existingRecipient) {
+      return res.status(400).json({ message: "Recipient already exists" });
+    }
+    
+    const newRecipient = await prisma.recipients.create({
+      data: {
+        recipients
+      }
+    });
+    
+    res.status(201).json({ message: "Recipient added successfully", recipient: newRecipient });
+  } catch (error) {
+    console.error("Error adding category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+app.put("/admin/update-recipient/:recipientId", adminAuth, async (req, res) => {
+  const { recipientId } = req.params;
+  const { recipients } = req.body;
+  
+  try {
+    const existingRecipient = await prisma.recipients.findUnique({
+      where: { id: parseInt(recipientId) }
+    });
+    
+    if (!existingRecipient) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+    
+    if (recipients) {
+      const nameExists = await prisma.recipients.findFirst({
+        where: {
+          recipients: { equals: recipients, mode: 'insensitive' },
+          id: { not: parseInt(recipientId) }
+        }
+      });
+      
+      if (nameExists) {
+        return res.status(400).json({ message: "Recipients name already exists" });
+      }
+    }
+    
+    const updateData = {};
+    if (recipients) updateData.recipients = recipients;
+    
+    const updatedRecipient = await prisma.recipients.update({
+      where: { id: parseInt(recipientId) },
+      data: updateData
+    });
+    
+    res.status(200).json({ message: "Recipient updated successfully", recipient: updatedRecipient });
+  } catch (error) {
+    console.error("Error updating category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+app.delete("/admin/delete-recipient/:recipientId", adminAuth, async (req, res) => {
+  const { recipientId } = req.params;
+  
+  try {
+    const existingRecipients = await prisma.recipients.findUnique({
+      where: { id: parseInt(recipientId) }
+    });
+    
+    if (!existingRecipients) {
+      return res.status(404).json({ message: "Recipient not found" });
+    }
+    
+    await prisma.recipients.delete({
+      where: { id: parseInt(recipientId) }
+    });
+    
+    res.status(200).json({ message: "Recipient deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting category:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
 app.post("/admin/add-subcategory/:categoryId", adminAuth, async (req, res) => {
   const { categoryId } = req.params;
   const { subcategory } = req.body;
@@ -492,7 +699,6 @@ app.post("/admin/add-subcategory/:categoryId", adminAuth, async (req, res) => {
   }
   
   try {
-    // Check if the category exists
     const category = await prisma.categories.findUnique({
       where: { id: parseInt(categoryId) }
     });
@@ -500,8 +706,7 @@ app.post("/admin/add-subcategory/:categoryId", adminAuth, async (req, res) => {
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
-    
-    // Check if subcategory already exists
+
     if (category.subCategories.includes(subcategory)) {
       return res.status(400).json({ message: "Subcategory already exists in this category" });
     }
@@ -963,19 +1168,45 @@ app.post("/admin/upload-s3-image", adminAuth, upload.single('image'), async (req
   }
 });
 
-app.get("/admin/flash-sale", async (req, res) => {
+app.get("/admin/flash-sales", async (req, res) => {
   try {
-    const flashSale = await prisma.flashSale.findFirst({
-      include: { items: true },
+    const flashSales = await prisma.flashSale.findMany({
+      include: {
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            salePrice: true,
+            discount: true,
+            product: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
     });
-    res.status(200).json(flashSale);
+
+    const formattedSales = flashSales.map(sale => ({
+      ...sale,
+      items: sale.items.map(item => ({
+        ...item,
+        productName: item.product.name
+      }))
+    }));
+
+    res.json(formattedSales);
   } catch (error) {
-    console.error("Error fetching flash sale:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error('Error fetching flash sales:', error);
+    res.status(500).json({ error: 'Failed to fetch flash sales' });
   }
 });
 
-app.post("/admin/flash-sale", async (req, res) => {
+app.post("/admin/flash-sales", async (req, res) => {
   const { title, description, startTime, endTime, items } = req.body;
 
   try {
@@ -1000,6 +1231,862 @@ app.post("/admin/flash-sale", async (req, res) => {
   } catch (error) {
     console.error("Error creating flash sale:", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+app.get("/admin/flash-sales/:id", adminAuth, async(req,res) => {
+  try {
+    const { id } = req.params;
+    
+    const flashSale = await prisma.flashSale.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                price: true,
+                images: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!flashSale) {
+      return res.status(404).json({ error: 'Flash sale not found' });
+    }
+
+    res.json(flashSale);
+  } catch (error) {
+    console.error('Error fetching flash sale:', error);
+    res.status(500).json({ error: 'Failed to fetch flash sale' });
+  }
+})
+
+app.put('/admin/flash-sales/:id', async(req,res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, startTime, endTime, items } = req.body;
+
+    if (!title || !startTime || !endTime || !items) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const updatedFlashSale = await prisma.$transaction(async (prisma) => {
+      await prisma.flashSaleItem.deleteMany({
+        where: {
+          flashSaleId: parseInt(id)
+        }
+      });
+
+      const flashSale = await prisma.flashSale.update({
+        where: { id: parseInt(id) },
+        data: {
+          title,
+          description,
+          startTime: new Date(startTime),
+          endTime: new Date(endTime),
+          items: {
+            create: items.map(item => ({
+              productId: item.productId,
+              salePrice: item.salePrice,
+              discount: item.discount
+            }))
+          }
+        },
+        include: {
+          items: true
+        }
+      });
+
+      return flashSale;
+    });
+
+    res.json(updatedFlashSale);
+  } catch (error) {
+    console.error('Error updating flash sale:', error);
+    res.status(500).json({ error: 'Failed to update flash sale' });
+  }
+})
+
+app.patch('/admin/flash-sales/:id/toggle', async(req,res) => {
+  try {
+    const { id } = req.params;
+    const { active } = req.body;
+
+    const updatedFlashSale = await prisma.flashSale.update({
+      where: { id: parseInt(id) },
+      data: { active }
+    });
+
+    res.json(updatedFlashSale);
+  } catch (error) {
+    console.error('Error toggling flash sale status:', error);
+    res.status(500).json({ error: 'Failed to update flash sale status' });
+  }
+})
+
+app.delete('/admin/flash-sales/:id', async(req,res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.flashSale.delete({
+      where: { id: parseInt(id) }
+    });
+
+    res.json({ message: 'Flash sale deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting flash sale:', error);
+    res.status(500).json({ error: 'Failed to delete flash sale' });
+  }
+})
+
+
+app.get('/admin/orders', adminAuth, async(req,res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const status = req.query.status;
+    const search = req.query.search || "";
+    
+    const skip = (page - 1) * limit;
+    
+    let whereCondition = {};
+    
+    if (status && status !== 'ALL') {
+      whereCondition.status = status;
+    }
+    
+    if (search) {
+      whereCondition.OR = [
+        { razorpayOrderId: { contains: search, mode: 'insensitive' } },
+        { user: { 
+          OR: [
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } }
+          ]
+        }}
+      ];
+    }
+    
+    const totalOrders = await prisma.order.count({
+      where: whereCondition
+    });
+    
+    const orders = await prisma.order.findMany({
+      where: whereCondition,
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      skip,
+      take: limit
+    });
+    
+    const totalPages = Math.ceil(totalOrders / limit);
+    
+    res.json({
+      orders,
+      currentPage: page,
+      totalPages,
+      totalOrders
+    });
+    
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+})
+
+app.get('/admin/orders/:id', adminAuth, async(req,res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true
+          }
+        },
+        orderItems: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                price: true,
+                discount: true,
+                discountedPrice: true,
+                images: {
+                  select: {
+                    displayImage: true
+                  },
+                  take: 1
+                }
+              }
+            }
+          }
+        },
+        shippingAddress: true
+      }
+    });
+    
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    res.json(order);
+    
+  } catch (error) {
+    console.error('Error fetching order details:', error);
+    res.status(500).json({ error: 'Failed to fetch order details' });
+  }
+})
+
+app.put('/admin/orders/:id/status', adminAuth, async(req,res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const { status } = req.body;
+    
+    if (!['INITIATED', 'PAID', 'FAILED', 'CANCELLED'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+    
+    const order = await prisma.order.findUnique({
+      where: { id: orderId }
+    });
+    
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    // If cancelling an order that was previously paid, refund to wallet
+    if (status === 'CANCELLED' && order.status === 'PAID') {
+      // First, create or update user's wallet
+      const wallet = await prisma.wallet.upsert({
+        where: { userId: order.userId },
+        update: {
+          balance: {
+            increment: order.amount
+          }
+        },
+        create: {
+          userId: order.userId,
+          balance: order.amount
+        }
+      });
+      
+      await prisma.transaction.create({
+        data: {
+          walletId: wallet.id,
+          amount: order.amount,
+          type: 'CREDIT',
+          description: `Refund for cancelled order #${orderId}`
+        }
+      });
+    }
+    
+    // Update order status
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { status }
+    });
+    
+    res.json(updatedOrder);
+    
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    res.status(500).json({ error: 'Failed to update order status' });
+  }
+})
+
+app.put('/admin/orders/:id/delivery', async(req,res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const { delivery } = req.body;
+    
+    if (!['Ordered', 'Shipped', 'Delivered', 'Cancelled'].includes(delivery)) {
+      return res.status(400).json({ error: 'Invalid delivery status value' });
+    }
+    
+    const order = await prisma.order.findUnique({
+      where: { id: orderId }
+    });
+    
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { delivery }
+    });
+    
+    res.json(updatedOrder);
+    
+  } catch (error) {
+    console.error('Error updating delivery status:', error);
+    res.status(500).json({ error: 'Failed to update delivery status' });
+  }
+})
+
+app.get('admin/orders/stats/summary', async(req,res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const { delivery } = req.body;
+    
+    if (!['Ordered', 'Shipped', 'Delivered', 'Cancelled'].includes(delivery)) {
+      return res.status(400).json({ error: 'Invalid delivery status value' });
+    }
+    
+    const order = await prisma.order.findUnique({
+      where: { id: orderId }
+    });
+    
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { delivery }
+    });
+    
+    res.json(updatedOrder);
+    
+  } catch (error) {
+    console.error('Error updating delivery status:', error);
+    res.status(500).json({ error: 'Failed to update delivery status' });
+  }
+})
+
+const validateCouponDates = (startDate, endDate) => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { valid: false, message: 'Invalid date format' };
+  }
+  
+  if (end < start) {
+    return { valid: false, message: 'End date must be after start date' };
+  }
+  
+  return { valid: true };
+};
+
+app.get('/admin/coupons', adminAuth, async (req, res) => {
+  try {
+    const coupons = await prisma.coupon.findMany({
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    // Format the data for the frontend
+    const formattedCoupons = coupons.map(coupon => ({
+      ...coupon,
+      discountValue: parseFloat(coupon.discountValue),
+      minPurchaseAmount: coupon.minPurchaseAmount ? parseFloat(coupon.minPurchaseAmount) : null,
+      maxDiscountAmount: coupon.maxDiscountAmount ? parseFloat(coupon.maxDiscountAmount) : null,
+    }));
+    
+    res.json(formattedCoupons);
+  } catch (error) {
+    console.error('Error fetching coupons:', error);
+    res.status(500).json({ error: 'Failed to fetch coupons' });
+  }
+});
+
+// CREATE a new coupon
+app.post('/admin/coupons', adminAuth, async (req, res) => {
+  try {
+    const {
+      code,
+      description,
+      discountType,
+      discountValue,
+      minPurchaseAmount,
+      maxDiscountAmount,
+      startDate,
+      endDate,
+      isActive,
+      usageLimit,
+      perUserLimit,
+      applicableUserIds,
+      applicableProductIds,
+      applicableCategories,
+      applicableOccasions,
+      applicableRecipients
+    } = req.body;
+
+    // Validate required fields
+    if (!code || !discountType || !discountValue || !startDate || !endDate) {
+      return res.status(400).json({ error: 'Required fields missing' });
+    }
+
+    // Validate code format (uppercase letters and numbers only)
+    if (!/^[A-Z0-9]+$/.test(code)) {
+      return res.status(400).json({ error: 'Coupon code must contain only uppercase letters and numbers' });
+    }
+
+    // Check if code already exists
+    const existingCoupon = await prisma.coupon.findUnique({
+      where: { code }
+    });
+
+    if (existingCoupon) {
+      return res.status(400).json({ error: 'Coupon code already exists' });
+    }
+
+    // Validate dates
+    const dateValidation = validateCouponDates(startDate, endDate);
+    if (!dateValidation.valid) {
+      return res.status(400).json({ error: dateValidation.message });
+    }
+
+    // Validate discount value
+    if (discountType === 'PERCENTAGE' && (discountValue <= 0 || discountValue > 100)) {
+      return res.status(400).json({ error: 'Percentage discount must be between 0 and 100' });
+    }
+
+    if (discountType === 'FIXED' && discountValue <= 0) {
+      return res.status(400).json({ error: 'Fixed discount must be greater than 0' });
+    }
+
+    // Create the coupon
+    const newCoupon = await prisma.coupon.create({
+      data: {
+        code,
+        description,
+        discountType,
+        discountValue,
+        minPurchaseAmount: minPurchaseAmount || null,
+        maxDiscountAmount: maxDiscountAmount || null,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        isActive,
+        usageLimit: usageLimit || null,
+        perUserLimit: perUserLimit || null,
+        applicableUserIds: applicableUserIds || [],
+        applicableProductIds: applicableProductIds || [],
+        applicableCategories: applicableCategories || [],
+        applicableOccasions: applicableOccasions || [],
+        applicableRecipients: applicableRecipients || []
+      }
+    });
+
+    res.status(201).json(newCoupon);
+  } catch (error) {
+    console.error('Error creating coupon:', error);
+    res.status(500).json({ error: 'Failed to create coupon' });
+  }
+});
+
+// UPDATE an existing coupon
+app.put('/admin/coupons/:id', adminAuth, async (req, res) => {
+  try {
+    const couponId = parseInt(req.params.id);
+    const {
+      code,
+      description,
+      discountType,
+      discountValue,
+      minPurchaseAmount,
+      maxDiscountAmount,
+      startDate,
+      endDate,
+      isActive,
+      usageLimit,
+      perUserLimit,
+      applicableUserIds,
+      applicableProductIds,
+      applicableCategories,
+      applicableOccasions,
+      applicableRecipients
+    } = req.body;
+
+    // Validate required fields
+    if (!code || !discountType || !discountValue || !startDate || !endDate) {
+      return res.status(400).json({ error: 'Required fields missing' });
+    }
+
+    // Validate code format
+    if (!/^[A-Z0-9]+$/.test(code)) {
+      return res.status(400).json({ error: 'Coupon code must contain only uppercase letters and numbers' });
+    }
+
+    // Check if coupon exists
+    const existingCoupon = await prisma.coupon.findUnique({
+      where: { id: couponId }
+    });
+
+    if (!existingCoupon) {
+      return res.status(404).json({ error: 'Coupon not found' });
+    }
+
+    // Check if updated code already exists (ignore if it's the same coupon)
+    if (code !== existingCoupon.code) {
+      const codeExists = await prisma.coupon.findUnique({
+        where: { code }
+      });
+
+      if (codeExists) {
+        return res.status(400).json({ error: 'Coupon code already exists' });
+      }
+    }
+
+    // Validate dates
+    const dateValidation = validateCouponDates(startDate, endDate);
+    if (!dateValidation.valid) {
+      return res.status(400).json({ error: dateValidation.message });
+    }
+
+    // Validate discount value
+    if (discountType === 'PERCENTAGE' && (discountValue <= 0 || discountValue > 100)) {
+      return res.status(400).json({ error: 'Percentage discount must be between 0 and 100' });
+    }
+
+    if (discountType === 'FIXED' && discountValue <= 0) {
+      return res.status(400).json({ error: 'Fixed discount must be greater than 0' });
+    }
+
+    // Update the coupon
+    const updatedCoupon = await prisma.coupon.update({
+      where: { id: couponId },
+      data: {
+        code,
+        description,
+        discountType,
+        discountValue,
+        minPurchaseAmount: minPurchaseAmount || null,
+        maxDiscountAmount: maxDiscountAmount || null,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        isActive,
+        usageLimit: usageLimit || null,
+        perUserLimit: perUserLimit || null,
+        applicableUserIds: applicableUserIds || [],
+        applicableProductIds: applicableProductIds || [],
+        applicableCategories: applicableCategories || [],
+        applicableOccasions: applicableOccasions || [],
+        applicableRecipients: applicableRecipients || []
+      }
+    });
+
+    res.json(updatedCoupon);
+  } catch (error) {
+    console.error('Error updating coupon:', error);
+    res.status(500).json({ error: 'Failed to update coupon' });
+  }
+});
+
+// DELETE a coupon
+app.delete('/admin/coupons/:id', adminAuth, async (req, res) => {
+  try {
+    const couponId = parseInt(req.params.id);
+    
+    // Check if coupon exists
+    const existingCoupon = await prisma.coupon.findUnique({
+      where: { id: couponId },
+      include: { usages: true }
+    });
+
+    if (!existingCoupon) {
+      return res.status(404).json({ error: 'Coupon not found' });
+    }
+
+    // Delete the coupon
+    await prisma.coupon.delete({
+      where: { id: couponId }
+    });
+
+    res.json({ message: 'Coupon deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting coupon:', error);
+    res.status(500).json({ error: 'Failed to delete coupon' });
+  }
+});
+
+// Get all users (for coupon targeting)
+app.get('/admin/users', adminAuth, async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true
+      },
+      orderBy: {
+        firstName: 'asc'
+      }
+    });
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.get('/admin/products', adminAuth, async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      select: {
+        id: true,
+        name: true,
+        price: true
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    });
+
+    const formattedProducts = products.map(product => ({
+      ...product,
+      price: parseFloat(product.price)
+    }));
+    
+    res.json(formattedProducts);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
+app.get('/admin/categories', adminAuth, async (req, res) => {
+  try {
+    const categories = await prisma.category.findMany({
+      select: {
+        id: true,
+        category: true
+      },
+      orderBy: {
+        category: 'asc'
+      }
+    });
+    res.json(categories);
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
+
+// Get all occasions (for coupon targeting)
+app.get('/admin/occasions', adminAuth, async (req, res) => {
+  try {
+    const occasions = await prisma.occasions.findMany({
+      select: {
+        id: true,
+        occasions: true
+      },
+      orderBy: {
+        occasions: 'asc'
+      }
+    });
+    res.json(occasions);
+  } catch (error) {
+    console.error('Error fetching occasions:', error);
+    res.status(500).json({ error: 'Failed to fetch occasions' });
+  }
+});
+
+// Get all recipients (for coupon targeting)
+app.get('/admin/recipients', adminAuth, async (req, res) => {
+  try {
+    const recipients = await prisma.recipients.findMany({
+      select: {
+        id: true,
+        recipients: true
+      },
+      orderBy: {
+        recipients: 'asc'
+      }
+    });
+    res.json(recipients);
+  } catch (error) {
+    console.error('Error fetching recipients:', error);
+    res.status(500).json({ error: 'Failed to fetch recipients' });
+  }
+});
+
+// Validate a coupon (for customer checkout)
+app.post('/validate-coupon', async (req, res) => {
+  try {
+    const { code, userId, cartItems, totalAmount } = req.body;
+    
+    if (!code || !userId || !cartItems || !totalAmount) {
+      return res.status(400).json({ error: 'Required fields missing' });
+    }
+    
+    // Find the coupon by code
+    const coupon = await prisma.coupon.findUnique({
+      where: { code },
+      include: {
+        usages: {
+          where: { userId: parseInt(userId) }
+        }
+      }
+    });
+    
+    // Check if coupon exists
+    if (!coupon) {
+      return res.status(404).json({ error: 'Coupon not found' });
+    }
+    
+    // Check if coupon is active
+    if (!coupon.isActive) {
+      return res.status(400).json({ error: 'Coupon is not active' });
+    }
+    
+    // Check if coupon is expired
+    const now = new Date();
+    if (now < coupon.startDate || now > coupon.endDate) {
+      return res.status(400).json({ error: 'Coupon is expired or not yet valid' });
+    }
+    
+    // Check usage limits
+    if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
+      return res.status(400).json({ error: 'Coupon usage limit exceeded' });
+    }
+    
+    // Check per-user limits
+    if (coupon.perUserLimit && coupon.usages.length >= coupon.perUserLimit) {
+      return res.status(400).json({ error: 'You have already used this coupon the maximum number of times' });
+    }
+    
+    // Check minimum purchase amount
+    if (coupon.minPurchaseAmount && totalAmount < parseFloat(coupon.minPurchaseAmount)) {
+      return res.status(400).json({ 
+        error: `Minimum purchase amount of ₹${parseFloat(coupon.minPurchaseAmount)} not met` 
+      });
+    }
+    
+    // Check user restrictions
+    if (coupon.applicableUserIds.length > 0 && !coupon.applicableUserIds.includes(parseInt(userId))) {
+      return res.status(400).json({ error: 'Coupon is not applicable for your account' });
+    }
+    
+    // Check product restrictions
+    if (coupon.applicableProductIds.length > 0) {
+      const cartProductIds = cartItems.map(item => item.productId);
+      const hasApplicableProduct = cartProductIds.some(id => 
+        coupon.applicableProductIds.includes(parseInt(id))
+      );
+      
+      if (!hasApplicableProduct) {
+        return res.status(400).json({ error: 'Coupon is not applicable for the products in your cart' });
+      }
+    }
+    
+    // Calculate discount amount
+    let discountAmount = 0;
+    
+    if (coupon.discountType === 'PERCENTAGE') {
+      discountAmount = totalAmount * (parseFloat(coupon.discountValue) / 100);
+      
+      // Apply maximum discount cap if applicable
+      if (coupon.maxDiscountAmount && discountAmount > parseFloat(coupon.maxDiscountAmount)) {
+        discountAmount = parseFloat(coupon.maxDiscountAmount);
+      }
+    } else { // FIXED discount
+      discountAmount = parseFloat(coupon.discountValue);
+      
+      // Discount cannot be greater than the total amount
+      if (discountAmount > totalAmount) {
+        discountAmount = totalAmount;
+      }
+    }
+    
+    // Round to 2 decimal places
+    discountAmount = Math.round(discountAmount * 100) / 100;
+    
+    // Respond with the coupon details and calculated discount
+    res.json({
+      valid: true,
+      coupon: {
+        id: coupon.id,
+        code: coupon.code,
+        description: coupon.description,
+        discountType: coupon.discountType,
+        discountValue: parseFloat(coupon.discountValue)
+      },
+      discountAmount,
+      finalAmount: totalAmount - discountAmount
+    });
+  } catch (error) {
+    console.error('Error validating coupon:', error);
+    res.status(500).json({ error: 'Failed to validate coupon' });
+  }
+});
+
+// Apply a coupon to an order (to be called during checkout)
+app.post('/apply-coupon', async (req, res) => {
+  try {
+    const { couponId, userId, orderId } = req.body;
+    
+    if (!couponId || !userId || !orderId) {
+      return res.status(400).json({ error: 'Required fields missing' });
+    }
+    
+    // Find the coupon
+    const coupon = await prisma.coupon.findUnique({
+      where: { id: parseInt(couponId) }
+    });
+    
+    if (!coupon) {
+      return res.status(404).json({ error: 'Coupon not found' });
+    }
+    
+    // Record the coupon usage
+    await prisma.couponUsage.create({
+      data: {
+        couponId: parseInt(couponId),
+        userId: parseInt(userId),
+        orderId: parseInt(orderId)
+      }
+    });
+    
+    // Increment the usage count
+    await prisma.coupon.update({
+      where: { id: parseInt(couponId) },
+      data: {
+        usageCount: {
+          increment: 1
+        }
+      }
+    });
+    
+    res.json({ message: 'Coupon applied successfully' });
+  } catch (error) {
+    console.error('Error applying coupon:', error);
+    
+    // Handle unique constraint violation
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'This coupon has already been applied to this order' });
+    }
+    
+    res.status(500).json({ error: 'Failed to apply coupon' });
   }
 });
 
