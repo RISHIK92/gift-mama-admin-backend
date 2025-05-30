@@ -1,4 +1,3 @@
-// schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -32,6 +31,8 @@ model User {
   walletOrders          WalletOrder[]
   address               Address[]
   couponUsage           CouponUsage[]
+  customUploads         CustomUpload[]
+  wishlist              Wishlist?
 }
 
 model Admin {
@@ -46,38 +47,74 @@ model Admin {
 }
 
 model Product {
-  name                  String                 @unique
-  price                 Decimal
-  discount              Decimal?
-  discountedPrice       Decimal?
-  description           String?
-  id                    Int                    @id @default(autoincrement())
-  categories            String[]
-  subCategories         String[]
-  occasion              String[]
-  recipients            String[]
-  createdAt             DateTime               @default(now())
-  svgTemplate           String?
-  updatedAt             DateTime               @default(now()) @updatedAt
-  requirements          String?
-  subSections           String[]
-  cartItems             CartItem[]
-  wishlistItems         WishlistItem[]
-  customizationTemplate CustomizationTemplate?
-  flashSaleItems        FlashSaleItem[]
-  orderItems            OrderItem[]
-  images                ProductImage[]
-  deliveryFee          Decimal?   @default(0)
+  id                     Int                     @id @default(autoincrement())
+  name                   String                  @unique
+  price                  Decimal
+  discount               Decimal?
+  discountedPrice        Decimal?
+  description            String?
+  categories             String[]
+  subCategories          String[]
+  occasion               String[]
+  recipients             String[]
+  isCustomizable         Boolean                 @default(false)
+  customizationOptions   Json?                   // Store customization options as JSON
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @default(now()) @updatedAt
+  deliveryFee            Decimal?                @default(0)
+  stock                  Int?
+  youtubeLink            String?
+
+  cartItems              CartItem[]
+  wishlistItems          WishlistItem[]
+  orderItems             OrderItem[]
+  images                 ProductImage[]
+  customUploads          CustomUpload[]
+  masks                  Mask[]
+  productMasks           ProductMask[]
+  customizationTemplates CustomizationTemplate[]
+  flashSaleItems         FlashSaleItem[]
 }
 
 model CustomizationTemplate {
-  id        Int      @id @default(autoincrement())
-  name      String
-  svgData   String
-  productId Int      @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-  product   Product  @relation(fields: [productId], references: [id])
+  id               Int       @id @default(autoincrement())
+  product          Product   @relation(fields: [productId], references: [id])
+  productId        Int
+  name             String
+  svgData          String?   // Optional SVG template data (overlay)
+  thumbnailUrl     String?   // Thumbnail for template selection
+  isActive         Boolean   @default(true)
+  orderIndex       Int       @default(0)
+  customizableAreas CustomizableArea[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  CustomUpload     CustomUpload[]
+}
+
+model CustomizableArea {
+  id               Int       @id @default(autoincrement())
+  template         CustomizationTemplate @relation(fields: [templateId], references: [id])
+  templateId       Int
+  name             String?
+  description      String?   // Add description field
+  shape            String    // 'rectangle', 'circle', 'triangle', 'hexagon'
+  centerX          Float     // X coordinate of center
+  centerY          Float     // Y coordinate of center
+  width            Float?    // For rectangle/triangle
+  height           Float?    // For rectangle/triangle
+  radius           Float?    // For circle/hexagon
+  defaultScale     Float     @default(1.0)
+  defaultRotation  Float     @default(0.0)
+  defaultPositionX Float     @default(0.0)
+  defaultPositionY Float     @default(0.0)
+  orderIndex       Int       @default(0)
+  allowedFormats   String[]  @default(["image/jpeg", "image/png"]) // Add allowed formats
+  maxFileSizeMB    Float     @default(5.0)  // Max file size in MB
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  CustomUpload     CustomUpload[]
 }
 
 model Category {
@@ -97,17 +134,17 @@ model Categories {
 }
 
 model Occasions {
-  id            Int      @id @default(autoincrement())
-  occasions   String   @unique
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
+  id         Int      @id @default(autoincrement())
+  occasions  String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
 }
 
 model Recipients {
-  id            Int      @id @default(autoincrement())
-  recipients   String   @unique
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
+  id         Int      @id @default(autoincrement())
+  recipients String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
 }
 
 model NavCategory {
@@ -190,7 +227,7 @@ model FlashSaleItem {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @default(now()) @updatedAt
   flashSale   FlashSale @relation(fields: [flashSaleId], references: [id], onDelete: Cascade)
-  product     Product   @relation(fields: [productId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([flashSaleId, productId])
 }
@@ -207,32 +244,37 @@ model Cart {
   couponDiscountAmount  Decimal?   @default(0)
   couponDiscountType    String?
   couponDiscountValue   Decimal?
-  deliveryFee          Decimal?   @default(0)
-  couponId       Int?
-  discountAmount Decimal?   @default(0)
+  deliveryFee           Decimal?   @default(0)
+  discountAmount        Decimal?   @default(0)
 
   @@index([userId])
 }
 
 model CartItem {
-  id             Int      @id @default(autoincrement())
-  cartId         Int
-  productId      Int
-  quantity       Int      @default(1)
-  flashSalePrice Decimal?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
-  cart           Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product        Product  @relation(fields: [productId], references: [id])
-
+  id                    Int       @id @default(autoincrement())
+  cartId                Int
+  productId             Int 
+  quantity              Int       @default(1)
+  flashSalePrice        Decimal?
+  customizationDetails  Json?     // Will store array of customization data
+  customizationImageUrls String[] // Storing all uploaded image URLs
+  customTemplateId      Int?      // ID of the selected customization template
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+  
+  // Relations
+  cart                  Cart      @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product               Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
   @@unique([cartId, productId])
 }
 
 model Wishlist {
-  id        Int           @id @default(autoincrement())
-  userId    Int           @unique
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id        Int            @id @default(autoincrement())
+  userId    Int            @unique
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
   items     WishlistItem[]
 }
 
@@ -243,34 +285,35 @@ model WishlistItem {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
-  product    Product  @relation(fields: [productId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([wishlistId, productId])
 }
 
 model Order {
-  id                Int         @id @default(autoincrement())
-  userId            Int
-  razorpayOrderId   String      @unique
-  razorpayPaymentId String?
-  razorpaySignature String?
-  amount            Float
-  status            String      @default("INITIATED")
-  delivery          String      @default("Ordered")
-  currency          String
-  useWallet         Boolean     @default(false)
-  walletAmount      Float       @default(0)
-  createdAt         DateTime    @default(now())
-  user              User        @relation(fields: [userId], references: [id])
-  orderItems        OrderItem[]
-  shippingAddress   ShippingAddress?
-  notes             String?
-  appliedCouponId   Int?
-  couponDiscountAmount Decimal? @default(0)
-  deliveryFee          Decimal    @default(0)
-  couponId          Int?
-  coupon            Coupon?      @relation(fields: [couponId], references: [id])
-  couponUsage       CouponUsage[]
+  id                    Int             @id @default(autoincrement())
+  userId                Int
+  razorpayOrderId       String          @unique
+  razorpayPaymentId     String?
+  razorpaySignature     String?
+  amount                Decimal
+  status                String          @default("INITIATED")
+  delivery              String          @default("Ordered")
+  currency              String
+  useWallet             Boolean         @default(false)
+  walletAmount          Decimal         @default(0)
+  customizationDetails  String?         // Add this field to store JSON stringified customization data
+  createdAt             DateTime        @default(now())
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItems            OrderItem[]
+  shippingAddress       ShippingAddress?
+  notes                 String?
+  appliedCouponId       Int?
+  couponDiscountAmount  Decimal?        @default(0)
+  deliveryFee           Decimal         @default(0)
+  couponId              Int?
+  coupon                Coupon?         @relation(fields: [couponId], references: [id])
+  couponUsage           CouponUsage[]
 }
 
 model Address {
@@ -291,34 +334,37 @@ model Address {
 }
 
 model ShippingAddress {
-  id        Int     @id @default(autoincrement())
-  orderId   Int     @unique
-  name      String?
-  line1     String?
-  line2     String?
-  city      String?
-  state     String?
+  id         Int     @id @default(autoincrement())
+  orderId    Int     @unique
+  name       String?
+  line1      String?
+  line2      String?
+  city       String?
+  state      String?
   postalCode String?
-  country   String?
-  phone     String?
-  order     Order   @relation(fields: [orderId], references: [id])
+  country    String?
+  phone      String?
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model OrderItem {
-  id        Int     @id @default(autoincrement())
-  orderId   Int
-  productId Int
-  quantity  Int
-  price     Float
-  order     Order   @relation(fields: [orderId], references: [id])
-  product   Product @relation(fields: [productId], references: [id])
+  id                    Int     @id @default(autoincrement())
+  orderId               Int
+  productId             Int
+  quantity              Int
+  price                 Decimal
+  customizationImageUrl String[]
+  customizationDetails  String? // This will store JSON stringified customization data
+  customTemplateId      Int?    // ID of the customization template used
+  order                 Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product               Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model Wallet {
   id           Int           @id @default(autoincrement())
   userId       Int           @unique
-  user         User          @relation(fields: [userId], references: [id])
-  balance      Float         @default(0)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance      Decimal       @default(0)
   transactions Transaction[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -327,11 +373,11 @@ model Wallet {
 model WalletOrder {
   id                Int      @id @default(autoincrement())
   userId            Int
-  user              User     @relation(fields: [userId], references: [id])
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   razorpayOrderId   String   @unique
   razorpayPaymentId String?
   razorpaySignature String?
-  amount            Float
+  amount            Decimal
   status            String   @default("INITIATED")
   currency          String   @default("INR")
   createdAt         DateTime @default(now())
@@ -341,15 +387,13 @@ model WalletOrder {
 model Transaction {
   id                Int      @id @default(autoincrement())
   walletId          Int
-  wallet            Wallet   @relation(fields: [walletId], references: [id])
-  amount            Float
+  wallet            Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amount            Decimal
   type              String
   description       String
   razorpayPaymentId String?
   createdAt         DateTime @default(now())
 }
-
-// Add to your schema.prisma file
 
 model Coupon {
   id                   Int          @id @default(autoincrement())
@@ -383,9 +427,9 @@ model CouponUsage {
   userId    Int
   orderId   Int?
   usedAt    DateTime @default(now())
-  coupon    Coupon   @relation(fields: [couponId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
-  order     Order?   @relation(fields: [orderId], references: [id])
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@unique([couponId, orderId])
 }
@@ -393,4 +437,64 @@ model CouponUsage {
 enum DiscountType {
   PERCENTAGE
   FIXED
+}
+
+model Mask {
+  id           Int           @id @default(autoincrement())
+  name         String
+  description  String?
+  maskImageUrl String        // URL to the transparent PNG mask
+  width        Int           // Width of the mask area
+  height       Int           // Height of the mask area
+  productId    Int
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  productMasks ProductMask[]
+}
+
+model ProductMask {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  maskId      Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  mask        Mask     @relation(fields: [maskId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, maskId])
+}
+
+model CustomUpload {
+  id               Int       @id @default(autoincrement())
+  product          Product   @relation(fields: [productId], references: [id])
+  productId        Int
+  user             User      @relation(fields: [userId], references: [id])
+  userId           Int
+  template         CustomizationTemplate @relation(fields: [templateId], references: [id])
+  templateId       Int
+  area             CustomizableArea? @relation(fields: [areaId], references: [id])
+  areaId           Int?
+  imageUrl         String    // URL to processed image
+  originalImageUrl String?    // URL to original image
+  width            Int?
+  height           Int?
+  scale            Float?     @default(1.0)
+  rotation         Float?     @default(0.0)
+  positionX        Float?     @default(0.0) 
+  positionY        Float?     @default(0.0)
+  shape            String?    // Shape used for this upload
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Testimonial {
+  id          Int      @id @default(autoincrement())
+  name        String
+  content     String
+  rating      Int      @default(5)
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isActive    Boolean  @default(true)
 }
