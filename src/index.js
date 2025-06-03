@@ -2053,12 +2053,12 @@ app.get("/admin/admins/:id", adminAuth, async (req, res) => {
 
 app.post("/admin/admins", adminAuth, async (req, res) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
+    const { firstName, lastName, email, phone, password } = req.body;
 
-    if (!firstName || !email || !password) {
+    if (!firstName || !email || !phone || !password) {
       return res
         .status(400)
-        .json({ error: "First name, email, and password are required" });
+        .json({ error: "First name, email, phone and password are required" });
     }
 
     const existingAdmin = await prisma.admin.findUnique({
@@ -2078,6 +2078,7 @@ app.post("/admin/admins", adminAuth, async (req, res) => {
         firstName,
         lastName: lastName || null,
         email,
+        phone: phone,
         password: hashedPassword,
       },
     });
