@@ -2312,37 +2312,121 @@ const getUploadFields = (maxTemplates = 10) => {
 app.post("/admin/products", adminAuth, upload.any(), async (req, res) => {
   try {
     const files = req.files;
-    const productData = req.body || "{}";
+    const productData = req.body || {};
 
-    console.log(productData);
-    if (!productData.name || !productData.description || !productData.price) {
-      return res.status(400).json({ error: "Missing required product fields" });
+    // Validate required fields
+    const requiredFields = ["name", "description", "price", "stock"];
+    const missingFields = requiredFields.filter((field) => !productData[field]);
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields",
+        missingFields,
+        message: `The following fields are required: ${missingFields.join(
+          ", "
+        )}`,
+      });
     }
 
-    const mainImage = files.find((f) => f.fieldname === "mainImage");
-    const displayImage = files.find((f) => f.fieldname === "displayImage");
-    const additionalImages = files.filter((f) => f.fieldname === "images");
-
-    if (!mainImage || !displayImage) {
-      return res
-        .status(400)
-        .json({ error: "Main image and display image are required" });
-    }
-
-    const templates = {};
-    files.forEach((file) => {
-      const match = file.fieldname.match(
-        /customizationTemplates\[(\d+)\]\[(thumbnail|svg)\]/
-      );
-      if (match) {
-        const [_, index, type] = match;
-        if (!templates[index]) templates[index] = {};
-        templates[index][type] = file;
-      }
+    // Validate numeric fields
+    const numericFields = [
+      "price",
+      "discount",
+      "discountedPrice",
+      "stock",
+      "deliveryFee",
+    ];
+    const invalidNumericFields = numericFields.filter((field) => {
+      if (!productData[field]) return false;
+      return isNaN(parseFloat(productData[field]));
     });
 
-    // Upload main images
-    const [mainImageUrl, displayImageUrl] = await Promise.all([
+    if (invalidNumericFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid numeric values",
+        invalidFields: invalidNumericFields,
+        message: `The following fields must be numbers: ${invalidNumericFields.join(
+          ", "
+        )}`,
+      });
+    }
+
+    // Validate images
+    const mainImage = files.find((f) => f.fieldname === "mainImage");
+    const displayImage = files.find((f) => f.fieldname === "displayImage");
+
+    if (!mainImage || !displayImage) {
+      return res.status(400).json({
+        success: false,
+        error: "Image validation failed",
+        message: "Main image and display image are required",
+      });
+    }
+
+    // Validate image types
+    const validImageTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!validImageTypes.includes(mainImage.mimetype)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid image type",
+        field: "mainImage",
+        message: "Main image must be JPEG, PNG, or WebP",
+      });
+    }
+
+    if (!validImageTypes.includes(displayImage.mimetype)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid image type",
+        field: "displayImage",
+        message: "Display image must be JPEG, PNG, or WebP",
+      });
+    }
+
+    // Validate additional images
+    const additionalImages = files.filter((f) => f.fieldname === "images");
+    if (additionalImages.length > 5) {
+      return res.status(400).json({
+        success: false,
+        error: "Too many images",
+        message: "Maximum 5 additional images allowed",
+      });
+    }
+
+    // Process customization templates if product is customizable
+    let templates = {};
+    if (productData.isCustomizable === "true") {
+      files.forEach((file) => {
+        const match = file.fieldname.match(
+          /customizationTemplates\[(\d+)\]\[(thumbnail|svg)\]/
+        );
+        if (match) {
+          const [_, index, type] = match;
+          if (!templates[index]) templates[index] = {};
+          templates[index][type] = file;
+        }
+      });
+
+      // Validate each template has both thumbnail and SVG
+      Object.entries(templates).forEach(([index, templateFiles]) => {
+        if (!templateFiles.thumbnail || !templateFiles.svg) {
+          throw new Error(`Template ${index} is missing required files`);
+        }
+
+        if (!validImageTypes.includes(templateFiles.thumbnail.mimetype)) {
+          throw new Error(`Template ${index} thumbnail has invalid image type`);
+        }
+
+        if (templateFiles.svg.mimetype !== "image/svg+xml") {
+          throw new Error(`Template ${index} must be an SVG file`);
+        }
+      });
+    }
+
+    // Upload all images in parallel
+    const uploadPromises = [
       uploadFileToS3(
         mainImage.buffer,
         `products/main-${Date.now()}-${mainImage.originalname}`,
@@ -2353,69 +2437,19 @@ app.post("/admin/products", adminAuth, upload.any(), async (req, res) => {
         `products/display-${Date.now()}-${displayImage.originalname}`,
         displayImage.mimetype
       ),
-    ]);
-
-    // Upload additional images
-    const additionalImageUrls = await Promise.all(
-      additionalImages.map((img) =>
+      ...additionalImages.map((img) =>
         uploadFileToS3(
           img.buffer,
           `products/additional-${Date.now()}-${img.originalname}`,
           img.mimetype
         )
-      )
-    );
+      ),
+    ];
 
-    // Create product
-    const product = await prisma.product.create({
-      data: {
-        name: productData.name,
-        description: productData.description,
-        price: parseFloat(productData.price),
-        discount: productData.discount
-          ? parseFloat(productData.discount)
-          : null,
-        discountedPrice: productData.discountedPrice
-          ? parseFloat(productData.discountedPrice)
-          : null,
-        deliveryFee: parseInt(productData.deliveryFee) || 0,
-        stock: parseInt(productData.stock) || 0,
-        youtubeLink: productData.youtubeLink,
-        // inclusiveOfTaxes: productData.inclusiveOfTaxes === 'true',
-        // requirements: productData.requirements,
-        categories: productData.categoryId ? [productData.categoryId] : [],
-        subCategories: productData.subsectionId
-          ? [productData.subsectionId]
-          : [],
-        occasion: productData.occasion || [],
-        recipients: productData.recipients || [],
-        isCustomizable: productData.isCustomizable === "true",
-        images: {
-          create: {
-            mainImage: mainImageUrl,
-            displayImage: displayImageUrl,
-            subImages: additionalImageUrls,
-          },
-        },
-      },
-    });
-
-    if (
-      productData.isCustomizable &&
-      productData.customizationTemplates?.length
-    ) {
-      for (const [
-        index,
-        templateData,
-      ] of productData.customizationTemplates.entries()) {
-        const templateFiles = templates[index];
-        if (!templateFiles?.thumbnail || !templateFiles?.svg) {
-          console.warn(`Missing files for template ${index}`);
-          continue;
-        }
-
-        // Upload template files
-        const [thumbnailUrl, svgUrl] = await Promise.all([
+    // Upload template files if they exist
+    if (productData.isCustomizable === "true") {
+      Object.values(templates).forEach((templateFiles) => {
+        uploadPromises.push(
           uploadFileToS3(
             templateFiles.thumbnail.buffer,
             `templates/thumbnail-${Date.now()}-${
@@ -2427,40 +2461,111 @@ app.post("/admin/products", adminAuth, upload.any(), async (req, res) => {
             templateFiles.svg.buffer,
             `templates/svg-${Date.now()}-${templateFiles.svg.originalname}`,
             templateFiles.svg.mimetype
-          ),
-        ]);
+          )
+        );
+      });
+    }
 
-        // Create template
-        await prisma.customizationTemplate.create({
-          data: {
-            productId: product.id,
-            name: templateData.name,
-            thumbnailUrl,
-            svgData: svgUrl,
-            isActive: true,
-            customizableAreas: {
-              create:
-                templateData.customizableAreas?.map((area) => ({
-                  name: area.name,
-                  description: area.description || "",
-                  shape: area.shape || "rectangle",
-                  centerX: parseFloat(area.centerX) || 50,
-                  centerY: parseFloat(area.centerY) || 50,
-                  width: area.width ? parseFloat(area.width) : null,
-                  height: area.height ? parseFloat(area.height) : null,
-                  radius: area.radius ? parseFloat(area.radius) : null,
-                  defaultScale: parseFloat(area.defaultScale) || 1.0,
-                  defaultRotation: parseFloat(area.defaultRotation) || 0.0,
-                  defaultPositionX: parseFloat(area.defaultPositionX) || 0.0,
-                  defaultPositionY: parseFloat(area.defaultPositionY) || 0.0,
-                  maxFileSizeMB: parseFloat(area.maxFileSizeMB) || 5.0,
-                  // allowedFormats: area.allowedFormats || ["image/jpeg", "image/png"]
-                })) || [],
+    const uploadedUrls = await Promise.all(uploadPromises);
+    const [mainImageUrl, displayImageUrl, ...additionalImageUrls] =
+      uploadedUrls.splice(0, 2 + additionalImages.length);
+
+    // Create product transaction
+    const product = await prisma.$transaction(async (prisma) => {
+      // Create the product
+      const product = await prisma.product.create({
+        data: {
+          name: productData.name,
+          description: productData.description,
+          price: parseFloat(productData.price),
+          discount: productData.discount
+            ? parseFloat(productData.discount)
+            : null,
+          discountedPrice: productData.discountedPrice
+            ? parseFloat(productData.discountedPrice)
+            : null,
+          deliveryFee: parseInt(productData.deliveryFee) || 0,
+          stock: parseInt(productData.stock) || 0,
+          youtubeLink: productData.youtubeLink,
+          inclusiveOfTaxes: productData.inclusiveOfTaxes === "true",
+          requirements: productData.requirements,
+          categories: productData.categoryId ? [productData.categoryId] : [],
+          subCategories: productData.subsectionId
+            ? [productData.subsectionId]
+            : [],
+          occasion: productData.occasion
+            ? JSON.parse(productData.occasion)
+            : [],
+          recipients: productData.recipients
+            ? JSON.parse(productData.recipients)
+            : [],
+          isCustomizable: productData.isCustomizable === "true",
+          images: {
+            create: {
+              mainImage: mainImageUrl,
+              displayImage: displayImageUrl,
+              subImages: additionalImageUrls,
             },
           },
-        });
+        },
+        include: {
+          images: true,
+        },
+      });
+
+      // Create customization templates if needed
+      if (
+        productData.isCustomizable === "true" &&
+        productData.customizationTemplates
+      ) {
+        const templateUrls = uploadedUrls.splice(
+          0,
+          Object.keys(templates).length * 2
+        );
+        let templateIndex = 0;
+
+        for (const [index, templateData] of Object.entries(
+          JSON.parse(productData.customizationTemplates)
+        )) {
+          const thumbnailUrl = templateUrls[templateIndex++];
+          const svgUrl = templateUrls[templateIndex++];
+
+          await prisma.customizationTemplate.create({
+            data: {
+              productId: product.id,
+              name: templateData.name,
+              thumbnailUrl,
+              svgData: svgUrl,
+              isActive: true,
+              customizableAreas: {
+                create:
+                  templateData.customizableAreas?.map((area) => ({
+                    name: area.name,
+                    description: area.description || "",
+                    shape: area.shape || "rectangle",
+                    centerX: parseFloat(area.centerX) || 50,
+                    centerY: parseFloat(area.centerY) || 50,
+                    width: area.width ? parseFloat(area.width) : null,
+                    height: area.height ? parseFloat(area.height) : null,
+                    radius: area.radius ? parseFloat(area.radius) : null,
+                    defaultScale: parseFloat(area.defaultScale) || 1.0,
+                    defaultRotation: parseFloat(area.defaultRotation) || 0.0,
+                    defaultPositionX: parseFloat(area.defaultPositionX) || 0.0,
+                    defaultPositionY: parseFloat(area.defaultPositionY) || 0.0,
+                    maxFileSizeMB: parseFloat(area.maxFileSizeMB) || 5.0,
+                    allowedFormats: area.allowedFormats || [
+                      "image/jpeg",
+                      "image/png",
+                    ],
+                  })) || [],
+              },
+            },
+          });
+        }
       }
-    }
+
+      return product;
+    });
 
     res.status(201).json({
       success: true,
@@ -2469,9 +2574,43 @@ app.post("/admin/products", adminAuth, upload.any(), async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating product:", error);
+
+    // Handle Prisma errors
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(400).json({
+        success: false,
+        error: "Database error",
+        code: error.code,
+        message: error.message,
+      });
+    }
+
+    // Handle S3 upload errors
+    if (error.name === "S3UploadError") {
+      return res.status(500).json({
+        success: false,
+        error: "File upload failed",
+        message: "Failed to upload files to storage",
+      });
+    }
+
+    // Handle validation errors
+    if (
+      error.message.includes("validation") ||
+      error.message.includes("invalid")
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Validation error",
+        message: error.message,
+      });
+    }
+
+    // Generic error response
     res.status(500).json({
       success: false,
-      error: "Failed to create product",
+      error: "Internal server error",
+      message: "Failed to create product",
       details:
         process.env.NODE_ENV === "development" ? error.message : undefined,
     });
