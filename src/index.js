@@ -12,7 +12,12 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.ADMIN_FRONTEND_URL, // or your frontend URL
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 const JWT_SECRET = "123123";
@@ -400,7 +405,6 @@ app.delete("/admin/delete-subsection", adminAuth, async (req, res) => {
   }
 });
 
-// Get all categories (includes categories, occasions, and recipients)
 app.get("/admin/get-categories", adminAuth, async (req, res) => {
   try {
     const categories = await prisma.allCategories.findMany();
@@ -856,71 +860,63 @@ app.delete(
   }
 );
 
-// Add a new item to any of the arrays (categories, occasions, or recipients)
-app.post("/admin/add-category", adminAuth, async (req, res) => {
-  const { type, name } = req.body;
+// app.post("/admin/add-category", adminAuth, async (req, res) => {
+//   const { type, name } = req.body;
 
-  if (!type || !name) {
-    return res.status(400).json({ message: "Type and name are required" });
-  }
+//   if (!type || !name) {
+//     return res.status(400).json({ message: "Type and name are required" });
+//   }
 
-  // Validate type value
-  if (!["categories", "occasions", "recipients"].includes(type)) {
-    return res.status(400).json({
-      message:
-        "Invalid type. Must be 'categories', 'occasions', or 'recipients'",
-    });
-  }
+//   if (!["categories", "occasions", "recipients"].includes(type)) {
+//     return res.status(400).json({
+//       message:
+//         "Invalid type. Must be 'categories', 'occasions', or 'recipients'",
+//     });
+//   }
 
-  try {
-    // Get the current categories document
-    const categoriesDoc = await prisma.allCategories.findFirst();
+//   try {
+//     const categoriesDoc = await prisma.allCategories.findFirst();
 
-    if (!categoriesDoc) {
-      // If no document exists, create a new one with the item in the appropriate array
-      const newData = {
-        categories: type === "categories" ? [name] : [],
-        occasions: type === "occasions" ? [name] : [],
-        recipients: type === "recipients" ? [name] : [],
-      };
+//     if (!categoriesDoc) {
+//       const newData = {
+//         categories: type === "categories" ? [name] : [],
+//         occasions: type === "occasions" ? [name] : [],
+//         recipients: type === "recipients" ? [name] : [],
+//       };
 
-      const newCategoriesDoc = await prisma.allCategories.create({
-        data: newData,
-      });
+//       const newCategoriesDoc = await prisma.allCategories.create({
+//         data: newData,
+//       });
 
-      return res.status(201).json({
-        message: `${type.slice(0, -1)} added successfully`,
-        categories: newCategoriesDoc,
-      });
-    }
+//       return res.status(201).json({
+//         message: `${type.slice(0, -1)} added successfully`,
+//         categories: newCategoriesDoc,
+//       });
+//     }
 
-    // Check if the item already exists in the specified array
-    if (categoriesDoc[type] && categoriesDoc[type].includes(name)) {
-      return res
-        .status(400)
-        .json({ message: `${name} already exists in ${type}` });
-    }
+//     if (categoriesDoc[type] && categoriesDoc[type].includes(name)) {
+//       return res
+//         .status(400)
+//         .json({ message: `${name} already exists in ${type}` });
+//     }
 
-    // Add the new item to the specified array
-    const updatedArray = [...(categoriesDoc[type] || []), name];
+//     const updatedArray = [...(categoriesDoc[type] || []), name];
 
-    // Update the document with the new array
-    const updatedDoc = await prisma.allCategories.update({
-      where: { id: categoriesDoc.id },
-      data: { [type]: updatedArray },
-    });
+//     const updatedDoc = await prisma.allCategories.update({
+//       where: { id: categoriesDoc.id },
+//       data: { [type]: updatedArray },
+//     });
 
-    res.status(201).json({
-      message: `${type.slice(0, -1)} added successfully`,
-      categories: updatedDoc,
-    });
-  } catch (error) {
-    console.error(`Error adding ${type}:`, error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-});
+//     res.status(201).json({
+//       message: `${type.slice(0, -1)} added successfully`,
+//       categories: updatedDoc,
+//     });
+//   } catch (error) {
+//     console.error(`Error adding ${type}:`, error);
+//     res.status(500).json({ message: "Internal Server Error" });
+//   }
+// });
 
-// Update an item in any of the arrays
 app.put("/admin/update-category/:categoryId", adminAuth, async (req, res) => {
   const { categoryId } = req.params;
   const { type, category, oldName, newName } = req.body;
@@ -2309,6 +2305,17 @@ const getUploadFields = (maxTemplates = 10) => {
   return fields;
 };
 
+function tryParseJSON(value) {
+  try {
+    if (typeof value === "string" && /^[{\[]/.test(value.trim())) {
+      return JSON.parse(value);
+    }
+    return [value]; // fallback: wrap string in array
+  } catch {
+    return [value]; // fallback on parse error
+  }
+}
+
 app.post("/admin/products", adminAuth, upload.any(), async (req, res) => {
   try {
     const files = req.files;
@@ -2487,18 +2494,12 @@ app.post("/admin/products", adminAuth, upload.any(), async (req, res) => {
           deliveryFee: parseInt(productData.deliveryFee) || 0,
           stock: parseInt(productData.stock) || 0,
           youtubeLink: productData.youtubeLink,
-          inclusiveOfTaxes: productData.inclusiveOfTaxes === "true",
-          requirements: productData.requirements,
           categories: productData.categoryId ? [productData.categoryId] : [],
           subCategories: productData.subsectionId
             ? [productData.subsectionId]
             : [],
-          occasion: productData.occasion
-            ? JSON.parse(productData.occasion)
-            : [],
-          recipients: productData.recipients
-            ? JSON.parse(productData.recipients)
-            : [],
+          occasion: productData.occasion || [],
+          recipients: productData.recipients || [],
           isCustomizable: productData.isCustomizable === "true",
           images: {
             create: {
